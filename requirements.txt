@@ -1,4 +1,4 @@
 # MCP Reference Code Server Dependencies
 mcp>=1.0.0
 starlette>=0.37.0
-uvicorn>=0.29.0
+uvicorn>=0.54.0
