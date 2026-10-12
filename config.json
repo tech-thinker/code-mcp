@@ -1,0 +1,48 @@
+{
+  "projects": {
+    "frontend": {
+      "path": "/app/projects/frontend",
+      "description": "Frontend application (React/Vue/Svelte)"
+    },
+    "backend": {
+      "path": "/app/projects/backend",
+      "description": "Backend API (FastAPI/Express/Go)"
+    },
+    "shared": {
+      "path": "/app/projects/shared",
+      "description": "Shared libraries and types"
+    }
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "log_level": "INFO"
+  },
+  "file_access": {
+    "max_file_size": 1048576,
+    "encoding": "utf-8"
+  },
+  "ignore_patterns": [
+    "node_modules",
+    ".venv",
+    "venv",
+    ".git",
+    "dist",
+    "build",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".tox",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    ".DS_Store",
+    "Thumbs.db",
+    "*.log",
+    "*.tmp",
+    "*.temp",
+    ".env",
+    ".env.local",
+    ".env.*.local"
+  ]
+}
