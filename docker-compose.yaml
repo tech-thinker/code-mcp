@@ -1,20 +1,15 @@
 services:
-  mcp-reference-server:
-    build: .
-    container_name: mcp-reference-server
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.prod
+    container_name: code-mcp
     restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Every subfolder of ./projects becomes one reference project.
+      # Mounted read-only; the folder name is the project name.
+      - ./projects:/app/projects:ro
     ports:
       - "8000:8000"
-    volumes:
-      # Codebases (read-only)
-      - ./projects/frontend:/app/projects/frontend:ro
-      - ./projects/backend:/app/projects/backend:ro
-      - ./projects/shared:/app/projects/shared:ro
-      # Config (read-only - edit on host, restart to reload)
-      - ./config.json:/app/config/config.json:ro
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s

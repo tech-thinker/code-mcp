@@ -63,6 +63,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile.prod
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -78,6 +79,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile.prod
           push: false
           load: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
@@ -89,11 +91,9 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           # Test the locally loaded single-platform image
+          mkdir -p ${{ github.workspace }}/ci-projects/frontend ${{ github.workspace }}/ci-projects/backend
           docker run --rm -d --name test-container -p 8000:8000 \
-            -e REFERENCE_PROJECTS=frontend:/projects/frontend,backend:/projects/backend,shared:/projects/shared \
-            -v ${{ github.workspace }}/projects/frontend:/projects/frontend:ro \
-            -v ${{ github.workspace }}/projects/backend:/projects/backend:ro \
-            -v ${{ github.workspace }}/projects/shared:/projects/shared:ro \
+            -v ${{ github.workspace }}/ci-projects:/app/projects:ro \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           sleep 10
           curl -f http://localhost:8000/health || (docker logs test-container && exit 1)

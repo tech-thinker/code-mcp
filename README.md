@@ -1,212 +1,105 @@
 # MCP Reference Code Server
 
-A production-ready Model Context Protocol (MCP) server that serves multiple reference codebases to LLM clients over a remote Server-Sent Events (SSE) connection.
+An MCP server that serves reference codebases to LLM clients. Every folder inside `projects/` is one reference project, and its folder name is the project name.
 
-## Features
+## Project Layout
 
-- **Multi-Project Support**: Serve multiple codebases (frontend, backend, shared libraries) from a single server
-- **Config-Driven**: Define projects in `config.json` - no code changes needed
-- **Hot Reload**: Edit `config.json` and restart container (no rebuild required)
-- **Security First**: Strict path validation prevents directory traversal attacks
-- **Remote Access**: SSE transport for connecting LLMs over network
-- **Production Ready**: Docker support, health checks, non-root user, structured logging
-- **Multi-Arch**: Built for `linux/amd64` and `linux/arm64`
-
-## Quick Start
-
-### Docker (Recommended)
-
-```bash
-# 1. Clone and configure
-git clone <this-repo>
-cd code-mcp
-
-# 2. Edit config.json with your project paths (container paths)
-#    Example uses /app/projects/<name>
-
-# 3. Place your codebases in ./projects/
-mkdir -p projects/frontend projects/backend projects/shared
-# cp -r /path/to/your/frontend/* projects/frontend/
-# cp -r /path/to/your/backend/* projects/backend/
-# cp -r /path/to/your/shared/* projects/shared/
-
-# 4. Start server
-docker compose up -d
-
-# 5. Verify
-curl http://localhost:8000/health
+```
+projects/
+├── frontend/   -> project "frontend"
+├── backend/    -> project "backend"
+└── shared/     -> project "shared"
 ```
 
-### Local Development
+Add or remove a codebase by adding or removing a folder. Files placed directly in `projects/` are ignored.
 
-```bash
-# 1. Create virtual environment
-python -m venv venv && source venv/bin/activate
+### Optional `projects/config.json`
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Edit config.json with absolute host paths
-#    Example: "path": "/home/user/code-mcp/projects/frontend"
-
-# 4. Run server
-python server.py
-```
-
-## Configuration
-
-### config.json (Primary)
+To help AI agents understand each project, add `projects/config.json`. Keys are project folder names:
 
 ```json
 {
-  "projects": {
-    "frontend": {
-      "path": "/app/projects/frontend",
-      "description": "Frontend application"
-    },
-    "backend": {
-      "path": "/app/projects/backend",
-      "description": "Backend API"
-    },
-    "shared": {
-      "path": "/app/projects/shared",
-      "description": "Shared libraries"
-    }
+  "frontend": {
+    "type": "frontend",
+    "description": "React dashboard for the admin panel"
   },
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8000,
-    "log_level": "INFO"
-  },
-  "file_access": {
-    "max_file_size": 1048576,
-    "encoding": "utf-8"
-  },
-  "ignore_patterns": [
-    "node_modules", ".git", "dist", "__pycache__", "*.pyc", ".env"
-  ]
+  "backend": {
+    "type": "backend",
+    "description": "FastAPI service with auth and billing"
+  }
 }
 ```
 
-### Key Points
+- `type` and `description` are shown in the server instructions and in `list_reference_projects`.
+- Projects without an entry work as normal with empty values.
+- If the file is missing or invalid JSON, it is ignored and the server still runs.
 
-| Setting | Description |
-|---------|-------------|
-| `projects.<name>.path` | **Absolute path inside container** (must match volume mount) |
-| `server.host/port` | Bind address and port |
-| `file_access.max_file_size` | Max file size to read (bytes) |
-| `ignore_patterns` | fnmatch patterns to exclude when browsing |
+## Environment Variables
 
-### Updating Projects (No Rebuild)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| APP_NAME | Server name | code-mcp |
+| PROTOCOL | Transport (`http`, `sse`, `stdio`) | http |
+| PORT | Port to run the server on | 8000 |
+| PROJECTS_DIR | Folder whose subfolders are the projects | projects |
+| MAX_FILE_SIZE | Max bytes returned by `get_reference_file` | 1048576 |
+| ENCODING | Text encoding used to read files | utf-8 |
 
-```bash
-# Edit config.json on host
-vim config.json
+Copy `.env.example` to `.env` to override them.
 
-# Restart container only
-docker compose restart
-```
-
-## Available Tools
+## Tools
 
 | Tool | Description |
 |------|-------------|
-| `list_reference_projects` | List all registered projects with stats |
-| `browse_reference_directory` | Browse directory tree with file sizes |
-| `get_reference_file` | Read full file content with metadata |
+| `list_reference_projects` | List all projects with their paths and file/directory counts |
+| `browse_reference_directory` | List the entries of a directory inside a project |
+| `get_reference_file` | Read the full text content of a file inside a project |
+
+Ignored names (for example `node_modules`, `.git`, `.env`, `__pycache__`) are hidden from browsing and cannot be read.
+
+## Local Development
+
+```bash
+# 1. Put codebases in ./projects
+mkdir -p projects/frontend projects/backend
+# cp -r /path/to/frontend/* projects/frontend/
+
+# 2. Run
+just run        # or: make run  /  uv run main.py
+
+# 3. Test
+just test       # or: make test
+```
+
+Health check: `curl http://localhost:8000/health`
+
+## Docker
+
+```bash
+docker compose up -d --build
+docker compose logs -f
+curl http://localhost:8000/health
+```
+
+`./projects` is mounted read-only at `/app/projects`. To change the projects, edit the folders on the host and restart the container with `docker compose restart`. No rebuild is needed.
 
 ## Client Configuration
-
-### Claude Desktop
 
 ```json
 {
   "mcpServers": {
-    "reference-code": {
-      "transport": "sse",
-      "url": "http://localhost:8000/sse"
+    "code-mcp": {
+      "url": "http://localhost:8000/mcp"
     }
   }
 }
-```
-
-### VS Code
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "reference-code": {
-        "type": "sse",
-        "url": "http://localhost:8000/sse"
-      }
-    }
-  }
-}
-```
-
-### Generic MCP Client
-
-```python
-from mcp.client.sse import sse_client
-
-async with sse_client("http://localhost:8000/sse") as (read, write):
-    # Use the client
-    pass
-```
-
-## Docker Compose
-
-```yaml
-services:
-  mcp-reference-server:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./projects/frontend:/app/projects/frontend:ro
-      - ./projects/backend:/app/projects/backend:ro
-      - ./projects/shared:/app/projects/shared:ro
-      - ./config.json:/app/config/config.json:ro
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 ```
 
 ## Security
 
-- Path traversal prevented via `os.path.commonpath` validation
-- Absolute paths rejected
-- Symlinks resolved before validation
-- File size limits enforced
-- Runs as non-root user in container
-
-## CI/CD
-
-Automated builds on push to main/tags via GitHub Actions:
-- Multi-platform images (`amd64`, `arm64`) pushed to `ghcr.io/tech-thinker/code-mcp`
-- Health checks run on every build
-- Releases created from git tags
-
-## Project Structure
-
-```
-code-mcp/
-├── server.py              # Main MCP server
-├── config.json            # Project configuration
-├── requirements.txt       # Python dependencies
-├── Dockerfile             # Multi-stage build
-├── docker-compose.yaml    # Local orchestration
-├── .github/workflows/     # CI/CD pipelines
-├── projects/              # Codebase mount points
-│   ├── frontend/
-│   ├── backend/
-│   └── shared/
-└── AGENTS.md              # Agent knowledge base
-```
-
-## License
-
-MIT
+- Path traversal is blocked by resolving the target path and checking it stays inside the project folder
+- Absolute paths are rejected
+- Symlinks are resolved before the check
+- Ignored names are blocked
+- File size limit is enforced
+- The projects volume is mounted read-only

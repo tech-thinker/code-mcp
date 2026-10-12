@@ -1,0 +1,10 @@
+{
+    "cartman": {
+        "type": "backend",
+        "description": "This is golang backend"
+    },
+    "cartman-ui": {
+        "type": "frontend",
+        "description": "This frontend using react js"
+    }
+}
