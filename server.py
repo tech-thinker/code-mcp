@@ -16,11 +16,11 @@ import sys
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Awaitable, Callable
 
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
-from mcp.types import Tool, TextContent
+from mcp.types import Tool, TextContent, ListToolsRequest, CallToolRequest, CallToolResult
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.responses import Response
@@ -408,83 +408,104 @@ def _format_size(size: int) -> str:
 
 
 # =============================================================================
-# MCP Server Setup
+# MCP Server Setup (New API)
 # =============================================================================
 
 # Create the MCP server
 server = Server("reference-code-server")
 
+# Define available tools
+TOOLS = [
+    Tool(
+        name="list_reference_projects",
+        description="List all registered reference projects with their paths and statistics",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False
+        }
+    ),
+    Tool(
+        name="browse_reference_directory",
+        description="Browse a directory in a reference project, listing files and subdirectories",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Name of the registered project (e.g., 'frontend', 'backend')"
+                },
+                "relative_path": {
+                    "type": "string",
+                    "description": "Relative path within the project (optional, defaults to root)",
+                    "default": ""
+                }
+            },
+            "required": ["project_name"],
+            "additionalProperties": False
+        }
+    ),
+    Tool(
+        name="get_reference_file",
+        description="Read the full content of a file from a reference project",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Name of the registered project (e.g., 'frontend', 'backend')"
+                },
+                "relative_path": {
+                    "type": "string",
+                    "description": "Relative path to the file within the project"
+                }
+            },
+            "required": ["project_name", "relative_path"],
+            "additionalProperties": False
+        }
+    )
+]
 
-@server.list_tools()
-async def list_tools() -> List[Tool]:
-    """List available tools."""
-    return [
-        Tool(
-            name="list_reference_projects",
-            description="List all registered reference projects with their paths and statistics",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False
-            }
-        ),
-        Tool(
-            name="browse_reference_directory",
-            description="Browse a directory in a reference project, listing files and subdirectories",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "Name of the registered project (e.g., 'frontend', 'backend')"
-                    },
-                    "relative_path": {
-                        "type": "string",
-                        "description": "Relative path within the project (optional, defaults to root)",
-                        "default": ""
-                    }
-                },
-                "required": ["project_name"],
-                "additionalProperties": False
-            }
-        ),
-        Tool(
-            name="get_reference_file",
-            description="Read the full content of a file from a reference project",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "Name of the registered project (e.g., 'frontend', 'backend')"
-                    },
-                    "relative_path": {
-                        "type": "string",
-                        "description": "Relative path to the file within the project"
-                    }
-                },
-                "required": ["project_name", "relative_path"],
-                "additionalProperties": False
-            }
+
+async def handle_list_tools(request: ListToolsRequest) -> List[Tool]:
+    """Handle tools/list request."""
+    return TOOLS
+
+
+async def handle_call_tool(request: CallToolRequest) -> CallToolResult:
+    """Handle tools/call request."""
+    name = request.params.name
+    arguments = request.params.arguments or {}
+    
+    try:
+        if name == "list_reference_projects":
+            result = await list_reference_projects()
+        elif name == "browse_reference_directory":
+            project_name = arguments.get("project_name", "")
+            relative_path = arguments.get("relative_path", "")
+            result = await browse_reference_directory(project_name, relative_path)
+        elif name == "get_reference_file":
+            project_name = arguments.get("project_name", "")
+            relative_path = arguments.get("relative_path", "")
+            result = await get_reference_file(project_name, relative_path)
+        else:
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"Unknown tool: {name}")],
+                is_error=True
+            )
+        
+        return CallToolResult(content=result, is_error=False)
+    except Exception as e:
+        logger.error(f"Error calling tool {name}: {e}")
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"Error: {str(e)}")],
+            is_error=True
         )
-    ]
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    """Handle tool calls."""
-    if name == "list_reference_projects":
-        return await list_reference_projects()
-    elif name == "browse_reference_directory":
-        project_name = arguments.get("project_name", "")
-        relative_path = arguments.get("relative_path", "")
-        return await browse_reference_directory(project_name, relative_path)
-    elif name == "get_reference_file":
-        project_name = arguments.get("project_name", "")
-        relative_path = arguments.get("relative_path", "")
-        return await get_reference_file(project_name, relative_path)
-    else:
-        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+# Register handlers using the new API (not decorators)
+server.add_request_handler("tools/list", ListToolsRequest, handle_list_tools)
+server.add_request_handler("tools/call", CallToolRequest, handle_call_tool)
 
 
 # =============================================================================
@@ -533,7 +554,7 @@ async def health_check(request):
         content=json.dumps({
             "status": "healthy",
             "projects": list(config.projects.keys()),
-            "version": "1.0.0"
+            "version": "1.1.0"
         }),
         media_type="application/json"
     )
