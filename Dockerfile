@@ -1,5 +1,5 @@
 # Multi-stage build for production-ready MCP Reference Code Server
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # =============================================================================
 # Production Stage
 # =============================================================================
-FROM python:3.11-slim AS production
+FROM python:3.14-slim AS production
 
 # Create non-root user for security
 RUN groupadd -r mcpuser && useradd -r -g mcpuser -m -s /bin/bash mcpuser
