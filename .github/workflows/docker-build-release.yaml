@@ -58,7 +58,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (multi-platform)
         id: build
         uses: docker/build-push-action@v5
         with:
@@ -72,16 +72,29 @@ jobs:
           provenance: false
           sbom: false
 
+      - name: Build single-platform image for testing
+        if: github.event_name != 'pull_request'
+        id: build-test
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
       - name: Run health check on built image
         if: github.event_name != 'pull_request'
         run: |
-          # Test the image locally
+          # Test the locally loaded single-platform image
           docker run --rm -d --name test-container -p 8000:8000 \
             -e REFERENCE_PROJECTS=frontend:/projects/frontend,backend:/projects/backend,shared:/projects/shared \
             -v ${{ github.workspace }}/projects/frontend:/projects/frontend:ro \
             -v ${{ github.workspace }}/projects/backend:/projects/backend:ro \
             -v ${{ github.workspace }}/projects/shared:/projects/shared:ro \
-            ${{ steps.meta.outputs.tags }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           sleep 10
           curl -f http://localhost:8000/health || (docker logs test-container && exit 1)
           docker stop test-container
