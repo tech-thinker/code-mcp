@@ -1,72 +1,20 @@
-version: '3.8'
-
 services:
   mcp-reference-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: mcp-reference-server
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      # Server Configuration (can be overridden in config.json)
-      - MCP_SERVER_HOST=0.0.0.0
-      - MCP_SERVER_PORT=8000
-      - MCP_LOG_LEVEL=INFO
-      
-      # Optional: File access settings (can be overridden in config.json)
-      # - MCP_MAX_FILE_SIZE=1048576
-      # - MCP_FILE_ENCODING=utf-8
-      
-      # Optional: Ignore patterns (can be overridden in config.json)
-      # - MCP_IGNORE_PATTERNS=node_modules,.git,dist,__pycache__,*.pyc,.env
     volumes:
-      # Mount your local codebases to /app/projects (read-only)
-      # Adjust these paths to match your local directory structure
+      # Codebases (read-only)
       - ./projects/frontend:/app/projects/frontend:ro
       - ./projects/backend:/app/projects/backend:ro
       - ./projects/shared:/app/projects/shared:ro
-      
-      # Mount config file (read-only) - edit config.json and restart container to change projects
+      # Config (read-only - edit on host, restart to reload)
       - ./config.json:/app/config/config.json:ro
-      
-      # Optional: Mount a custom config directory
-      # - ./config:/app/config:ro
-    networks:
-      - mcp-network
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-networks:
-  mcp-network:
-    driver: bridge
-    name: mcp-reference-network
-
-# =============================================================================
-# Usage Instructions
-# =============================================================================
-# 1. Edit config.json to define your projects:
-#    {
-#      "projects": {
-#        "frontend": { "path": "/app/projects/frontend", "description": "..." },
-#        "backend":  { "path": "/app/projects/backend", "description": "..." },
-#        "shared":   { "path": "/app/projects/shared", "description": "..." }
-#      }
-#    }
-#
-# 2. Place your codebases in ./projects/ subdirectories
-#
-# 3. Start the server:
-#    docker-compose up -d --build
-#
-# 4. To update projects: edit config.json, then restart:
-#    docker-compose restart
-#
-# 5. Access via SSE at: http://localhost:8000/sse
-#
-# 6. Configure your MCP client (see AGENTS.md for client configuration)
