@@ -60,7 +60,7 @@ jobs:
 
       - name: Build and push Docker image (multi-platform)
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.prod
@@ -76,7 +76,7 @@ jobs:
       - name: Build single-platform image for testing
         if: github.event_name != 'pull_request'
         id: build-test
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.prod
