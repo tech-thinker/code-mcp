@@ -1,4 +1,4 @@
-# MCP Reference Code Server
+# Code MCP
 
 An MCP server that serves reference codebases to LLM clients. Every folder inside `projects/` is one reference project, and its folder name is the project name.
 
