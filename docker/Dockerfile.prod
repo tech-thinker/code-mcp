@@ -15,6 +15,9 @@ WORKDIR /app
 
 COPY --from=builder /app /app
 
+# Install fzf for search tool
+RUN apt-get update && apt-get install -y fzf && rm -rf /var/lib/apt/lists/*
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PROJECTS_DIR=/app/projects

@@ -2,6 +2,7 @@ import pytest
 
 from app import projects
 from app.config import settings
+from app.tools.projects import search_reference_project
 
 
 @pytest.fixture
@@ -77,3 +78,56 @@ def test_invalid_config_is_ignored(projects_dir):
 def test_ignored_path_is_rejected(projects_dir):
     with pytest.raises(ValueError, match="ignored"):
         projects.resolve_path("backend", "node_modules")
+
+
+def test_search_files_exact_match(projects_dir):
+    (projects_dir / "frontend" / "src" / "main.ts").write_text("console.log('main')\n")
+    (projects_dir / "frontend" / "src" / "component.ts").write_text("export class Component {}\n")
+    result = search_reference_project("frontend", "main.ts", "files")
+    assert result["total"] == 1
+    assert result["matches"][0]["path"] == "src/main.ts"
+
+
+def test_search_files_wildcard(projects_dir):
+    (projects_dir / "frontend" / "src" / "main.ts").write_text("console.log('main')\n")
+    (projects_dir / "frontend" / "src" / "main_test.ts").write_text("test\n")
+    (projects_dir / "frontend" / "src" / "component.ts").write_text("export class Component {}\n")
+    result = search_reference_project("frontend", "*main*", "files")
+    assert result["total"] == 2
+    paths = [m["path"] for m in result["matches"]]
+    assert "src/main.ts" in paths
+    assert "src/main_test.ts" in paths
+
+
+def test_search_files_no_matches(projects_dir):
+    result = search_reference_project("frontend", "nonexistent", "files")
+    assert result["total"] == 0
+    assert result["matches"] == []
+
+
+def test_search_content(projects_dir):
+    (projects_dir / "frontend" / "src" / "app.ts").write_text("function main() {}\n")
+    (projects_dir / "frontend" / "src" / "util.ts").write_text("export const helper = 1\n")
+    result = search_reference_project("frontend", "function", "content")
+    assert result["total"] == 1
+    assert result["matches"][0]["path"] == "src/app.ts"
+
+
+def test_search_both(projects_dir):
+    (projects_dir / "frontend" / "src" / "main.ts").write_text("function main() {}\n")
+    (projects_dir / "frontend" / "src" / "util.ts").write_text("export const helper = 1\n")
+    result = search_reference_project("frontend", "main", "both")
+    # Should find main.ts in both filename and content
+    assert result["total"] >= 1
+    paths = [m["path"] for m in result["matches"]]
+    assert "src/main.ts" in paths
+
+
+def test_search_unknown_project(projects_dir):
+    with pytest.raises(ValueError, match="not found"):
+        search_reference_project("missing", "test", "files")
+
+
+def test_search_invalid_type(projects_dir):
+    with pytest.raises(ValueError, match="Invalid search_type"):
+        search_reference_project("frontend", "test", "invalid")

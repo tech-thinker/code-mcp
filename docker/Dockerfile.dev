@@ -6,6 +6,9 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync
 
+# Install fzf for search tool
+RUN apt-get update && apt-get install -y fzf && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 
 ENV PROJECTS_DIR=/app/projects
